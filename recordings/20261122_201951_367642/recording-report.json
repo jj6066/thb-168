@@ -1,0 +1,357 @@
+{
+  "started_at": "2026-11-22T20:19:51.404366+08:00",
+  "timestamp_meaning": "local receipt timeline, Asia/Taipei (UTC+08)",
+  "requested_seconds": 60,
+  "fps": 10,
+  "results": [
+    {
+      "camera_id": "CCTV-38-0880-016-001",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-016-001.mp4",
+      "frames_received": 360,
+      "duration_seconds": 60,
+      "reconnections": 4,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.7394090790003247
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-022-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-022-002.mp4",
+      "frames_received": 296,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.6488838879995455
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-004-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-004-002.mp4",
+      "frames_received": 296,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.7408281479983998
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-009-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-009-002.mp4",
+      "frames_received": 232,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.7405472669997835
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-020-003",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-020-003.mp4",
+      "frames_received": 281,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.9404515169990191
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-013-003",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-013-003.mp4",
+      "frames_received": 260,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          1.2178068489993166
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-000-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-000-002.mp4",
+      "frames_received": 236,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          1.2943240029999288
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-001-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-001-002.mp4",
+      "frames_received": 200,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.854314919000899
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-003-003",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-003-003.mp4",
+      "frames_received": 296,
+      "duration_seconds": 60,
+      "reconnections": 4,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.6493467859982047
+        ],
+        [
+          46.72130218999882,
+          46.78333617099997
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-006-003",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-006-003.mp4",
+      "frames_received": 257,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.7173250800005917
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-015-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-015-002.mp4",
+      "frames_received": 232,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.7106636950011307
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-020-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-020-002.mp4",
+      "frames_received": 298,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.6053356640004495
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-013-004",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-013-004.mp4",
+      "frames_received": 285,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          1.2369251800009806
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-006-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-006-002.mp4",
+      "frames_received": 265,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          1.327251812999748
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-017-001",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-017-001.mp4",
+      "frames_received": 317,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          1.21820277200095
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-003-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-003-002.mp4",
+      "frames_received": 321,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.8508101599982183
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-013-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-013-002.mp4",
+      "frames_received": 287,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.6363479940009711
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-005-001",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-005-001.mp4",
+      "frames_received": 273,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.6050509050000983
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-019-001",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-019-001.mp4",
+      "frames_received": 337,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.8510038630010968
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-008-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-008-002.mp4",
+      "frames_received": 348,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.6059153140013223
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-018-001",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-018-001.mp4",
+      "frames_received": 264,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          1.4137374169986288
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-007-002",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-007-002.mp4",
+      "frames_received": 265,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.9819801029989321
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    },
+    {
+      "camera_id": "CCTV-38-0880-014-001",
+      "file": "/home/eric/pr_llm/thb168/recordings/20261122_201951_367642/CCTV-38-0880-014-001.mp4",
+      "frames_received": 306,
+      "duration_seconds": 60,
+      "reconnections": 2,
+      "signal_gaps_seconds": [
+        [
+          0,
+          0.9733047189984063
+        ]
+      ],
+      "last_errors": [],
+      "status": "ok"
+    }
+  ]
+}
