@@ -1,10 +1,11 @@
 """Google Maps selection → OSM geometry → traffic schematic SVG.
-Run: .venv/bin/python map2svg.py   (http://127.0.0.1:7999)
+Run: conda activate thb168; python map2svg.py   (http://ai-system1:7999)
 Google key: GOOGLE_MAPS_API_KEY environment variable or .env/thi.json.
 Requires SUMO netconvert on PATH (or SUMO_HOME). No OSMnx/Uvicorn required.
 Facilities are optional schematic proposals, never claimed as surveyed data.
 """
 import argparse
+from urllib.parse import quote
 import importlib.util
 import shutil
 import subprocess
@@ -103,7 +104,7 @@ def settings(data):
                 corner=numeric(data.get('corner_radius_m', 5), '轉角半徑', 0, 12),
                 facilities=data.get('facilities', False), islands=data.get('islands', False),
                 connections=data.get('connections', True),
-                title=str(data.get('title', '路口交通工程示意圖'))[:80])
+                title=(str(data.get('title') or '').strip() or '路口交通工程示意圖')[:80])
 
 
 @lru_cache(maxsize=32)
@@ -437,10 +438,14 @@ def render_svg(network, cfg):
     bar=20 if x1-x0>100 else 10
     parts.append(f'<g transform="translate({width-40:.2f} 30)"><path d="M 0 40 V 0 l -5 12 M 0 0 l 5 12" fill="none" stroke="#111" stroke-width="2"/><text x="-6" y="-8" font-size="17">N</text></g>')
     parts.append(f'<path d="M 30 88 h {bar*scale:.2f} m 0 -5 v 10 M 30 83 v 10" stroke="#222" fill="none"/><text x="{40+bar*scale:.2f}" y="93" font-size="12">{bar} m</text>')
-    note='斑馬線／號誌為示意配置；' if cfg['facilities'] else ''
-    parts.append(f'<text x="30" y="{height-25:.2f}" font-size="12" fill="#555">{note}車道與轉向依 OSM／SUMO 推算，非施工測量圖</text>')
     parts.append(f'<a href="https://www.openstreetmap.org/copyright"><text x="30" y="{height-8:.2f}" font-size="11" fill="#555">© OpenStreetMap contributors · ODbL · 地面道路 · SUMO netconvert</text></a></g></svg>')
     return ''.join(parts)
+
+
+def download_stem(title):
+    # Keep Chinese names; replace characters forbidden in common file systems.
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', '_', title).rstrip(' .')
+    return stem or '路口交通工程示意圖'
 
 
 def generate_result(data, elements=None):
@@ -462,7 +467,7 @@ def generate_result(data, elements=None):
         summary.append(dict(id=ident,name=roads[0]['name'],source=roads[0]['source'],
                             oneway=roads[0]['oneway'],width=round(sum(r['width'] for r in roads),2),
                             lanes=sum(len(r['lanes']) for r in roads)))
-    return dict(svg=render_svg(network,cfg),roads=summary,net_xml=network['net_xml'],engine='SUMO netconvert',
+    return dict(title=cfg['title'],filename=download_stem(cfg['title']),svg=render_svg(network,cfg),roads=summary,net_xml=network['net_xml'],engine='SUMO netconvert',
                 lane_count=sum(len(r['lanes']) for r in network['roads']),
                 connection_count=len(network['connections']))
 
@@ -480,7 +485,7 @@ def generate_intersection():
         svg=result['svg']
         if request.args.get('format')=='json':
             return jsonify(result)
-        return Response(svg,mimetype='image/svg+xml',headers={'Content-Disposition':'inline; filename="intersection.svg"'})
+        return Response(svg,mimetype='image/svg+xml',headers={'Content-Disposition': "inline; filename*=UTF-8''" + quote(result['filename'] + '.svg', safe='')})
     except ValueError as exc:
         return jsonify(error=str(exc)),400
     except LookupError as exc:
@@ -496,14 +501,14 @@ PAGE = r'''<!doctype html>
 <html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>路口交通工程示意圖</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f2f5f7;color:#172e3b;font:15px system-ui,sans-serif}header{padding:18px 24px;background:#113e50;color:white}h1{font-size:22px;margin:0 0 6px}header p{margin:0;color:#c8e0e9;font-size:13px}.controls{padding:15px;display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:white;border-bottom:1px solid #dbe3e7}label{display:flex;flex-direction:column;gap:4px;font-size:12px}input{width:110px;padding:8px;border:1px solid #b5c6ce;border-radius:5px}input[type=checkbox]{width:auto}button,.download{padding:10px 14px;border:0;border-radius:5px;background:#087e8b;color:white;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}.secondary{background:#e4edf0;color:#234}.workspace{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px}.panel{background:white;border:1px solid #dce4e8;border-radius:8px;overflow:hidden}.panel h2{font-size:15px;padding:13px;margin:0;border-bottom:1px solid #e4ebef}#map{height:580px}#preview{height:580px;display:flex;align-items:center;justify-content:center;padding:14px;background:#fafafa}#preview img{width:100%;height:100%;object-fit:contain}#status{padding:12px 20px;min-height:44px}details{padding:12px 20px}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}td input{width:80px}.hint{color:#667e87;font-size:13px}.check{display:block;padding:8px}.download[hidden]{display:none}@media(max-width:900px){.workspace{grid-template-columns:1fr}#map,#preview{height:460px}}
-</style><header><h1>路口交通工程示意圖</h1><p>Google Maps 選取範圍 → OpenStreetMap 道路中心線 → SUMO 車道／路口／轉向 → SVG</p></header>
+</style><header><h1>路口交通工程示意圖</h1></header>
 <div class="controls">
 <label>緯度<input id="lat" type="number" step="any" value="22.64080"></label><label>經度<input id="lon" type="number" step="any" value="120.59313"></label><label>半徑 m<input id="radius" type="number" min="25" max="250" value="85"></label>
 <button id="locate">定位／重設框選</button><button id="select" class="secondary">點兩角框選</button>
 <label>預設總車道<input id="lanes" type="number" min="1" max="10" value="2"></label><label>車道寬 m<input id="laneWidth" type="number" min="2.5" max="4.5" step=".1" value="3.25"></label><label>轉角半徑 m<input id="corner" type="number" min="0" max="12" value="5"></label>
 <label>圖名<input id="title" style="width:210px" value="路口交通工程示意圖"></label>
 <label class="check"><input id="facilities" type="checkbox"> 加入示意斑馬線、號誌</label><label class="check"><input id="islands" type="checkbox"> 標示道路封閉空隙</label>
-<label class="check"><input id="connections" type="checkbox" checked> 顯示 SUMO 轉向連接</label><button id="generate">產生 SVG</button><a class="download" id="download" download="intersection.svg" hidden>下載 SVG</a><a class="download" id="downloadNet" download="intersection.net.xml" hidden>下載 SUMO／NetEdit</a>
+<label class="check"><input id="connections" type="checkbox" checked> 顯示 SUMO 轉向連接</label><button id="generate">產生 SVG</button><a class="download" id="download" download hidden>下載 SVG</a><a class="download" id="downloadNet" download hidden>下載 SUMO／NetEdit</a>
 </div><div id="status" role="status" aria-live="polite">輸入經緯度或在地圖選取路口，拖曳框線控制點可調整範圍。</div>
 <div class="workspace"><section class="panel"><h2>01 ／ 選取路口 · 框選寬高 20–600 m</h2><div id="map"></div></section><section class="panel"><h2>02 ／ SVG 工程示意圖 · 北向朝上</h2><div id="preview"><p class="hint">選取路口後按「產生 SVG」</p></div></section></div>
 <details open><summary>道路寬度與車道校正</summary><p class="hint">產生後可逐條修改寬度與車道數，再按產生 SVG。寬度優先採用 OSM width；缺值以車道數推估。車道形狀、路口及轉向連接由 SUMO 計算；缺值用預設補足，仍需現場校核。道路寬度及車道數是整條 OSM way 的雙向合計；分隔道路每條 way 各自計算。橋梁、隧道及非地面圖層不繪製。</p><table><thead><tr><th>OSM way</th><th>路名</th><th>寬度來源</th><th>寬 m</th><th>車道數</th></tr></thead><tbody id="roads"></tbody></table></details>
@@ -517,7 +522,7 @@ window.gm_authFailure=()=>status('Google Maps 驗證失敗，請確認 Key、Map
 $('locate').onclick=()=>{setSelection(coordinateBounds());overrides={};$('roads').replaceChildren();status('已定位；可調整框選後產圖。')};
 for(const id of ['lat','lon','radius']) $(id).addEventListener('change',()=>setSelection(coordinateBounds()));
 $('select').onclick=()=>{if(!map){status('Google 地圖尚未載入，仍可輸入經緯度產圖。');return}choosing=true;firstCorner=null;map.setOptions({draggableCursor:'crosshair'});status('請在地圖點第一角，再點對角。')};
-$('generate').onclick=async()=>{const btn=$('generate');btn.disabled=true;$('download').hidden=true;$('downloadNet').hidden=true;status('正在取得 OSM 道路並產生幾何圖形，首次查詢可能需約 1 分鐘…');try{const body={lat:Number($('lat').value),lon:Number($('lon').value),radius_m:Number($('radius').value),default_lanes:Number($('lanes').value),lane_width_m:Number($('laneWidth').value),corner_radius_m:Number($('corner').value),title:$('title').value,facilities:$('facilities').checked,islands:$('islands').checked,connections:$('connections').checked,overrides};if(rect)body.bounds=rect.getBounds().toJSON();const response=await fetch('/api/intersection/generate?format=json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw Error(result.error||'產圖失敗');if(currentUrl)URL.revokeObjectURL(currentUrl);currentUrl=URL.createObjectURL(new Blob([result.svg],{type:'image/svg+xml'}));const img=new Image();img.alt='路口交通工程示意圖';img.src=currentUrl;$('preview').replaceChildren(img);$('download').href=currentUrl;$('download').hidden=false;if(netUrl)URL.revokeObjectURL(netUrl);netUrl=URL.createObjectURL(new Blob([result.net_xml],{type:'application/xml'}));$('downloadNet').href=netUrl;$('downloadNet').hidden=false;$('roads').replaceChildren();for(const road of result.roads){const row=document.createElement('tr');for(const val of [road.id,road.name,road.source]){const td=document.createElement('td');td.textContent=val;row.append(td)}for(const key of ['width','lanes']){const td=document.createElement('td'),input=document.createElement('input');input.type='number';input.min=key==='width'?2:1;input.max=key==='width'?60:10;input.step=key==='width'?.1:1;input.value=road[key];input.onchange=()=>{overrides[road.id]={...(overrides[road.id]||{}),[key]:Number(input.value)}};td.append(input);row.append(td)}$('roads').append(row)}status(`完成：${result.engine} · ${result.roads.length} 條 OSM 道路 · ${result.lane_count} 條車道 · ${result.connection_count} 個轉向連接（含框外緩衝區）。SVG 可下載；交通設施與車道配置需現場校核。`)}catch(e){status(e.message)}finally{btn.disabled=false}};
+$('generate').onclick=async()=>{const btn=$('generate');btn.disabled=true;$('download').hidden=true;$('downloadNet').hidden=true;status('正在取得 OSM 道路並產生幾何圖形，首次查詢可能需約 1 分鐘…');try{const body={lat:Number($('lat').value),lon:Number($('lon').value),radius_m:Number($('radius').value),default_lanes:Number($('lanes').value),lane_width_m:Number($('laneWidth').value),corner_radius_m:Number($('corner').value),title:$('title').value,facilities:$('facilities').checked,islands:$('islands').checked,connections:$('connections').checked,overrides};if(rect)body.bounds=rect.getBounds().toJSON();const response=await fetch('/api/intersection/generate?format=json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw Error(result.error||'產圖失敗');if(currentUrl)URL.revokeObjectURL(currentUrl);currentUrl=URL.createObjectURL(new Blob([result.svg],{type:'image/svg+xml'}));const img=new Image();img.alt=result.title;img.src=currentUrl;$('preview').replaceChildren(img);$('download').download=result.filename+'.svg';$('download').href=currentUrl;$('download').hidden=false;if(netUrl)URL.revokeObjectURL(netUrl);netUrl=URL.createObjectURL(new Blob([result.net_xml],{type:'application/xml'}));$('downloadNet').download=result.filename+'.net.xml';$('downloadNet').href=netUrl;$('downloadNet').hidden=false;$('roads').replaceChildren();for(const road of result.roads){const row=document.createElement('tr');for(const val of [road.id,road.name,road.source]){const td=document.createElement('td');td.textContent=val;row.append(td)}for(const key of ['width','lanes']){const td=document.createElement('td'),input=document.createElement('input');input.type='number';input.min=key==='width'?2:1;input.max=key==='width'?60:10;input.step=key==='width'?.1:1;input.value=road[key];input.onchange=()=>{overrides[road.id]={...(overrides[road.id]||{}),[key]:Number(input.value)}};td.append(input);row.append(td)}$('roads').append(row)}status(`完成：${result.engine} · ${result.roads.length} 條 OSM 道路 · ${result.lane_count} 條車道 · ${result.connection_count} 個轉向連接（含框外緩衝區）。SVG 可下載；交通設施與車道配置需現場校核。`)}catch(e){status(e.message)}finally{btn.disabled=false}};
 const key={{ key|tojson }};
 if(key){const s=document.createElement('script');s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(key)+'&loading=async&callback=initMap&v=weekly';s.async=true;s.onerror=()=>status('Google Maps 載入失敗，仍可輸入經緯度產圖。');document.head.append(s)}else{$('map').textContent='未設定 GOOGLE_MAPS_API_KEY。可先使用經緯度產圖。'}
 </script></html>'''
@@ -530,7 +535,7 @@ def page():
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--host',default='127.0.0.1')
+    parser.add_argument('--host',default='0.0.0.0')
     parser.add_argument('--port',type=int,default=7999)
     args=parser.parse_args()
     app.run(host=args.host,port=args.port,debug=False)
