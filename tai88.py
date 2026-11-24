@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Record every camera in tai88-cameras.json concurrently (default: 1 minute).
+"""Record every camera concurrently to the requested OUTPUT duration (default: 0.5 minutes).
 
-Requires Python 3.9+ and ffmpeg with libx264, drawtext, hqdn3d and unsharp.
-Capture first, then encode: encoding load cannot slow down network acquisition.
+Requires Python 3.9+, Pillow and ffmpeg with libx264, drawtext, hqdn3d and unsharp.
+Save numbered JPEGs first, then encode exactly one video frame per image.
+Frames play at --fps, independent of network arrival intervals.
+Collect duration * 60 * fps images per camera; acquisition time is not limited.
+Video duration = image count / fps. Slow sources take longer to collect.
 The overlay starts at request time (UTC+08) and follows continuous video time.
 Connection gaps are removed; the overlay is not camera exposure time.
 Missing intervals are omitted; no placeholder images or log/report files are written.
@@ -11,8 +14,9 @@ import argparse
 import concurrent.futures
 import datetime as dt
 import json
+import io
 import math
-import statistics
+import random
 import sys
 from pathlib import Path
 import re
@@ -23,15 +27,65 @@ import threading
 import time
 import urllib.request
 
+from PIL import Image
+
 TAIPEI = dt.timezone(dt.timedelta(hours=8))
 
 
-def ffmpeg(args):
-    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', *args]
-    result = subprocess.run(command, capture_output=True, text=True)
-    if result.returncode:
-        raise RuntimeError(result.stderr[-3000:])
+def decode_jpeg(data):
+    """Fully decode before counting; JPEG markers alone do not prove validity."""
+    with Image.open(io.BytesIO(data)) as image:
+        if image.format != 'JPEG':
+            raise ValueError('Expected JPEG')
+        image.load()
+        return image.convert('RGB')
 
+
+def images_to_mp4(image_dir, output, fps, filters):
+    """Write saved images in numeric order, one image per encoded frame."""
+    images = sorted(image_dir.glob('*.jpg'), key=lambda path: int(path.stem))
+    if not images:
+        raise ValueError('No images to encode')
+    with decode_jpeg(images[0].read_bytes()) as first:
+        size = first.size
+    command = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+        '-threads', '1', '-filter_threads', '1',
+        '-f', 'rawvideo', '-pixel_format', 'rgb24',
+        '-video_size', f'{size[0]}x{size[1]}', '-framerate', str(fps),
+        '-i', 'pipe:0',
+        '-vf', filters, '-frames:v', str(len(images)), '-fps_mode', 'passthrough',
+        '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+        '-threads', '1', '-movflags', '+faststart', str(output),
+    ]
+    # Temporary stderr capture prevents pipe blocking; no log file is retained.
+    with tempfile.TemporaryFile() as errors:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE,
+                                   stdout=subprocess.DEVNULL, stderr=errors)
+        try:
+            for image_path in images:
+                with decode_jpeg(image_path.read_bytes()) as image:
+                    if image.size != size:
+                        image = image.resize(size, Image.Resampling.LANCZOS)
+                    process.stdin.write(image.tobytes())
+            process.stdin.close()
+            returncode = process.wait()
+        except BrokenPipeError:
+            returncode = process.wait()
+        except BaseException:
+            process.kill()
+            process.wait()
+            raise
+        finally:
+            if not process.stdin.closed:
+                try:
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
+        if returncode:
+            errors.seek(0)
+            raise RuntimeError(errors.read().decode('utf-8', errors='replace')[-3000:])
+    return len(images)
 
 
 def camera_sort_key(camera):
@@ -61,93 +115,94 @@ def record(camera, args, folder, ready, clock, stop):
     name = camera['_filename']
     ready.wait()
     start, epoch = clock
-    deadline = start + args.duration_seconds
-    frames = []
+    target_frames = args.target_frames
+    next_progress = time.monotonic() + 60
+    frame_count = 0
     connection = 0
+    empty_connections = 0
+    tmp = Path(tempfile.mkdtemp(prefix=name + '-', dir=folder))
     try:
-        with tempfile.TemporaryDirectory(prefix=name + '-', dir=folder) as tmp:
-            tmp = Path(tmp)
-            while time.monotonic() < deadline and not stop.is_set():
-                connection += 1
-                try:
-                    request = urllib.request.Request(camera['VideoStreamURL'], headers={'User-Agent': 'tai88-recorder/1.0'})
-                    with urllib.request.urlopen(request, timeout=2) as response:
-                        buf = b''
-                        while time.monotonic() < deadline and not stop.is_set():
-                            chunk = response.read1(65536)
-                            if not chunk:
+        while (frame_count < target_frames and not stop.is_set()
+               and (args.max_requests is None or connection < args.max_requests)):
+            connection += 1
+            frames_before = frame_count
+            try:
+                request = urllib.request.Request(camera['VideoStreamURL'], headers={'User-Agent': 'tai88-recorder/1.0'})
+                with urllib.request.urlopen(request, timeout=10) as response:
+                    buf = b''
+                    while frame_count < target_frames and not stop.is_set():
+                        chunk = response.read1(65536)
+                        if not chunk:
+                            break
+                        buf += chunk
+                        if len(buf) > 8 * 1024 * 1024:
+                            raise ValueError('No valid JPEG found within 8 MB')
+                        while frame_count < target_frames and not stop.is_set():
+                            a = buf.find(b'\xff\xd8')
+                            b = buf.find(b'\xff\xd9', max(a, 0))
+                            if a < 0 or b < 0:
                                 break
-                            buf += chunk
-                            if len(buf) > 8 * 1024 * 1024:
-                                raise ValueError('No valid JPEG found within 8 MB')
-                            while True:
-                                a = buf.find(b'\xff\xd8')
-                                b = buf.find(b'\xff\xd9', max(a, 0))
-                                if a < 0 or b < 0:
-                                    break
-                                elapsed = time.monotonic() - start
-                                jpeg, buf = buf[a:b + 2], buf[b + 2:]
-                                if elapsed >= args.duration_seconds:
-                                    break
-                                path = tmp / f'{len(frames):07d}.jpg'
-                                path.write_bytes(jpeg)
-                                frames.append((path, elapsed, connection))
-                except (OSError, ValueError):
-                    pass
-                stop.wait(min(0.2, max(0, deadline - time.monotonic())))
-            if not frames:
-                return False
-            intervals = [b[1] - a[1] for a, b in zip(frames, frames[1:])
-                         if a[2] == b[2] and 0 < b[1] - a[1] <= 2.0]
-            normal_interval = statistics.median(intervals) if intervals else 1 / args.fps
-            segments = []
-            timeline = 0.0
-            for i, (path, timestamp, session) in enumerate(frames):
-                following = frames[i + 1] if i + 1 < len(frames) else None
-                # A new HTTP request starts immediately after the previous frames
-                # in the output, regardless of the wall-clock reconnection delay.
-                same_session = following is not None and following[2] == session
-                interval = following[1] - timestamp if same_session else normal_interval
-                duration = interval if 0 < interval <= 2.0 else normal_interval
-                duration = min(duration, max(0, args.duration_seconds - timestamp))
-                if duration <= 0:
-                    continue
-                segments.append((path, duration))
-                timeline += duration
-            length = timeline
-            manifest = tmp / 'frames.txt'
-            lines = []
-            for path, duration in segments:
-                # Paths are generated internally; escape apostrophes for concat syntax.
-                escaped = str(path).replace("'", "'\\''")
-                lines.extend([f"file '{escaped}'", 'option framerate 1000', f'duration {duration:.6f}'])
-            escaped = str(segments[-1][0]).replace("'", "'\\''")
-            lines.extend([f"file '{escaped}'", 'option framerate 1000'])
-            manifest.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-            # gmtime + eight hours is Taiwan time, independent of OS timezone.
-            timestamp_text = f"%{{pts\\:gmtime\\:{epoch + 8 * 3600:.6f}}} UTC+08"
-            filters = (
-                'scale=1280:960:flags=lanczos,setsar=1,'
-                f'fps={args.fps},hqdn3d=1.5:1.5:3:3,'
-                'unsharp=5:5:0.6:5:5:0,'
-                f"drawtext=fontfile='{args.font}':text='{timestamp_text}':"
-                'x=24:y=24:fontsize=40:fontcolor=white:box=1:boxcolor=black:boxborderw=12,'
-                'format=yuv420p'
-            )
-            output = folder / f'{name}.mp4'
-            partial = folder / f'{name}.partial.mp4'
-            ffmpeg(['-threads', '1', '-filter_threads', '1', '-f', 'concat', '-safe', '0',
-                    '-reinit_filter', '0', '-i', str(manifest), '-vf', filters, '-t', str(length), '-an',
-                    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-threads', '1',
-                    '-movflags', '+faststart', str(partial)])
-            partial.replace(output)
-            print(f'{ident}: {output}', flush=True)
-            return not stop.is_set()
+                            jpeg, buf = buf[a:b + 2], buf[b + 2:]
+                            try:
+                                with decode_jpeg(jpeg):
+                                    pass
+                            except (OSError, ValueError):
+                                continue
+                            path = tmp / f'{frame_count:07d}.jpg'
+                            path.write_bytes(jpeg)
+                            frame_count += 1
+                            if time.monotonic() >= next_progress:
+                                print(f'{ident}: {frame_count}/{target_frames} images '
+                                      f'({frame_count / args.fps:.1f}s of output)', flush=True)
+                                next_progress = time.monotonic() + 60
+            except (OSError, ValueError):
+                pass
+            if (frame_count < target_frames and not stop.is_set()
+                    and (args.max_requests is None or connection < args.max_requests)):
+                empty_connections = empty_connections + 1 if frame_count == frames_before else 0
+                # Space reconnects out; repeated empty responses back off further.
+                delay = min(30, 2 * (2 ** min(empty_connections, 4)))
+                stop.wait(delay + random.uniform(0, 1))
+        if not frame_count:
+            shutil.rmtree(tmp)
+            return False
+        # Each saved JPEG produces one frame. Do not use arrival timestamps,
+        # concat durations, an fps filter, or an output -r that repeats/drops frames.
+        # gmtime + eight hours is Taiwan time, independent of OS timezone.
+        timestamp_text = f"%{{pts\\:gmtime\\:{epoch + 8 * 3600:.6f}}} UTC+08"
+        filters = (
+            'scale=640:480:flags=lanczos,setsar=1,'
+            'hqdn3d=1.5:1.5:3:3,'
+            'unsharp=5:5:0.6:5:5:0,'
+            f"drawtext=fontfile='{args.font}':text='{timestamp_text}':"
+            'x=24:y=24:fontsize=40:fontcolor=white:box=1:boxcolor=black:boxborderw=12,'
+            'format=yuv420p'
+        )
+        output = folder / f'{name}.mp4'
+        partial = folder / f'{name}.partial.mp4'
+        images_to_mp4(tmp, partial, args.fps, filters)
+        probe = json.loads(subprocess.check_output([
+            'ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0',
+            '-show_entries', 'stream=nb_read_frames', '-of', 'json', str(partial),
+        ]))
+        encoded_frames = int(probe['streams'][0]['nb_read_frames'])
+        if encoded_frames <= 0:
+            raise RuntimeError('No decodable frames in encoded video')
+        request_limit_reached = (args.max_requests is not None
+                                 and connection >= args.max_requests and not stop.is_set())
+        if frame_count != target_frames and not request_limit_reached:
+            output = folder / f'{name}.incomplete.mp4'
+        partial.replace(output)
+        print(f'{ident}: {frame_count} images -> {encoded_frames} frames, '
+              f'{encoded_frames / args.fps:.2f}s at {args.fps} FPS '
+              f'({connection} HTTP requests): {output}', flush=True)
+        shutil.rmtree(tmp)
+        return frame_count == target_frames or request_limit_reached
     except Exception as exc:
         # Errors are shown once on stderr, never persisted as log files.
         print(f'{ident}: {exc}', file=sys.stderr, flush=True)
-        partial = folder / f'{name}.partial.mp4'
-        partial.unlink(missing_ok=True)
+        print(f'{ident}: retained images: {tmp}; any .partial.mp4 is retained',
+              file=sys.stderr, flush=True)
         return False
 
 
@@ -156,19 +211,29 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', type=Path, default=base / 'tai88-cameras.json')
     parser.add_argument('--output', type=Path, default=base / 'recordings')
-    parser.add_argument('--duration', type=float, default=2,
-                        help='Recording window in MINUTES (default: 1; --duration 10 = 10 minutes)')
-    parser.add_argument('--fps', type=int, default=10, help='Output FPS (does not add source detail)')
+    parser.add_argument('--duration', type=float, default=0.5,
+                        help='OUTPUT duration in MINUTES (default: 0.5; 10 at 10 FPS = 6000 images)')
+    parser.add_argument('--max-requests', type=int, default=1,
+                        help='Maximum HTTP requests per camera; 1 disables reconnects (default: unlimited)')
+    parser.add_argument('--fps', type=int, default=5, help='Image playback FPS; one image per frame (default: 10)')
     parser.add_argument('--camera-id', action='append', help='Optional camera subset; repeat to select more')
     parser.add_argument('--font', type=Path, default=Path('/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf'))
     args = parser.parse_args()
+    if args.max_requests is not None and args.max_requests < 1:
+        parser.error('max-requests must be at least 1')
     if not math.isfinite(args.duration) or args.duration <= 0 or not 1 <= args.fps <= 60:
         parser.error('duration must be positive and finite; fps must be between 1 and 60')
-    if not shutil.which('ffmpeg') or not args.font.is_file():
-        parser.error('ffmpeg and a font file are required (use --font to specify a font)')
+    if not shutil.which('ffmpeg') or not shutil.which('ffprobe') or not args.font.is_file():
+        parser.error('ffmpeg, ffprobe and a font file are required (use --font to specify a font)')
     args.duration_seconds = args.duration * 60
     if not math.isfinite(args.duration_seconds):
         parser.error('duration is too large')
+    frame_target = args.duration_seconds * args.fps
+    if not math.isfinite(frame_target):
+        parser.error('duration is too large')
+    args.target_frames = round(frame_target)
+    if args.target_frames < 1 or not math.isclose(frame_target, args.target_frames, rel_tol=0, abs_tol=1e-6):
+        parser.error('duration * 60 * fps must be a positive whole number of frames')
     args.font = args.font.resolve()
     document = json.loads(args.input.read_text(encoding='utf-8-sig'))
     cameras = document['cameras'] if isinstance(document, dict) else document
@@ -187,6 +252,7 @@ def main():
     start_epoch = time.time()
     start_monotonic = time.monotonic()
     start_time = dt.datetime.fromtimestamp(start_epoch, TAIPEI)
+    # Directory interval follows the continuous output timeline, not download time.
     end_time = start_time + dt.timedelta(seconds=args.duration_seconds)
     folder = args.output.resolve() / (
         f'{start_time:%Y%m%d_%H%M%S}--{end_time:%Y%m%d_%H%M%S}'
@@ -195,7 +261,8 @@ def main():
     ready, stop = threading.Event(), threading.Event()
     clock = []
     results = []
-    print(f'Recording {len(cameras)} cameras for {args.duration:g} minutes', flush=True)
+    print(f'Recording {len(cameras)} cameras: OUTPUT {args.duration:g} minutes, '
+          f'{args.target_frames} images each at {args.fps} FPS', flush=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(cameras)) as pool:
         futures = [pool.submit(record, c, args, folder, ready, clock, stop) for c in cameras]
         clock.extend([start_monotonic, start_epoch])
